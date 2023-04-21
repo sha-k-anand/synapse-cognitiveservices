@@ -1,0 +1,136 @@
+%%configure -f
+{
+  "name": "synapseml",
+  "conf": {
+      "spark.jars.packages": "com.microsoft.azure:synapseml_2.12:0.10.1",
+      "spark.jars.repositories": "https://mmlspark.azureedge.net/maven",
+      "spark.jars.excludes": "org.scala-lang:scala-reflect,org.apache.spark:spark-tags_2.12,org.scalactic:scalactic_2.12,org.scalatest:scalatest_2.12,com.fasterxml.jackson.core:jackson-databind",
+      "spark.yarn.user.classpath.first": "true"
+  }
+}
+
+import synapse.ml
+from synapse.ml.cognitive import *
+from pyspark.sql.functions import col
+
+
+
+
+# Create a dataframe that's tied to it's column names
+df = spark.createDataFrame([
+  ("I am so happy today, its sunny!", "en-US"),
+  ("I am frustrated by this rush hour traffic", "en-US"),
+  ("The cognitive services on spark aint bad", "en-US"),
+], ["text", "language"])
+
+# Run the Text Analytics service with options
+sentimentv2 = (TextSentimentV2()
+    .setLinkedService("CognitiveService1")
+    .setTextCol("text")
+    .setOutputCol("sentiment")
+    .setErrorCol("error")
+    .setLanguageCol("language"))
+
+# Show the results of your text query in a table format
+display(sentimentv2.transform(df).select("text", col("sentiment")[0].getItem("score").alias("positive score")))
+
+
+%%sql
+DROP TABLE input02
+
+%%sql
+CREATE TABLE IF NOT EXISTS input02
+ (
+id 		string, 
+dateAdded 	string, 
+dateUpdated 	string, 
+address 	string, 
+categories 	string, 
+primaryCategories string, 
+city 		string, 
+country 	string, 
+keys1 		string, 
+latitude	string, 
+longitude 	string, 
+name 		string, 
+postalCode 	string, 
+province 	string, 
+reviews_date 	string, 
+reviews_dateSeen string, 
+reviews_rating 	string, 
+reviews_sourceURLs string, 
+reviews_text 	string, 
+reviews_title 	string, 
+reviews_userCity string, 
+reviews_userProvince string, 
+reviews_username string, 
+sourceURLs 	string, 
+websites 	string
+) USING csv
+OPTIONS
+(
+path 'abfss://fs1@synapsetextanalytics002.dfs.core.windows.net/textanalytics/input/Datafiniti_Hotel_Reviews_minimaldata.csv'  ,
+header 'true'
+)
+
+
+
+%%pyspark
+from mmlspark.cognitive import *
+from notebookutils import mssparkutils
+from pyspark.sql.functions import explode
+
+
+
+#Datafiniti_Hotel_Reviews_minimaldata.csv
+#Datafiniti_Hotel_Reviews.csv
+
+df = spark.sql('select * from input02')
+sentiment = (TextSentimentV2()
+.setLinkedService("CognitiveService1")
+.setOutputCol("CognitiveService_Output")
+.setErrorCol("error")
+.setLanguage("en")
+.setTextCol("reviews_text")
+)
+results = sentiment.transform(df)
+
+
+resutls = results\
+    .select(
+    "id",\
+    "dateAdded",\
+    "dateUpdated",\
+    "address",\
+    "categories",\
+    "primaryCategories",\
+    "city",\
+    "country",\
+    "keys1",\
+    "latitude",\
+    "longitude",\
+    "name",\
+    "postalCode",\
+    "province",\
+    "reviews_date",\
+    "reviews_dateSeen",\
+    "reviews_rating",\
+    "reviews_sourceURLs",\
+    "reviews_text",\
+    "reviews_title",\
+    "reviews_userCity",\
+    "reviews_userProvince",\
+    "reviews_username",\
+    "sourceURLs",\
+    "websites"
+    )
+
+    #\
+    #explode("CognitiveService_Output").alias("CognitiveService_Output_exploded")\
+
+
+results.write.parquet("abfss://fs1@synapsetextadlsgen2.dfs.core.windows.net/textanalytics/output_011/")
+
+
+
+
